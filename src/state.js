@@ -14,7 +14,7 @@ export function initState(vm){
 
 function initProps(){};
 function initMethods(){};
-
+// 代理
 function proxy(vm,source,key){
     Object.defineProperty(vm,key,{
         get(){
@@ -34,7 +34,7 @@ function initData(vm){
     if(data.__ob__ instanceof Observer){ // 防止数据被多次观测
         return ;
     }
-
+    // 将属性代理到实例上
     for(let key in data){
         proxy(vm,'_data',key);
     }

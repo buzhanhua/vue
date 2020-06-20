@@ -14,7 +14,7 @@
     // 数据会被检测， 响应式数据指：我们对数据操作，可以更新页面。
     // 原理： 对对象的所有属性， 使用defineProperty进行重新定义 ， get setter
     var vm = new Vue({
-        el: "app",
+        el: "#app",
         data(){
             // this 指向vue实例
             return{
@@ -25,9 +25,8 @@
                 },
                 arr: [1,2,3,4,{a:2}]
             }
-        }
+        },
+        template: '<div id="app" style="color:red"><span>nnnn{{age}}</span>wwwww<p></p></div>'
     });
-    vm._data.arr.push({b:9})
-    console.log(vm)
 </script>
 </html>
