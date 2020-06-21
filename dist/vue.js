@@ -42,6 +42,62 @@
     return Constructor;
   }
 
+  function _slicedToArray(arr, i) {
+    return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest();
+  }
+
+  function _arrayWithHoles(arr) {
+    if (Array.isArray(arr)) return arr;
+  }
+
+  function _iterableToArrayLimit(arr, i) {
+    if (typeof Symbol === "undefined" || !(Symbol.iterator in Object(arr))) return;
+    var _arr = [];
+    var _n = true;
+    var _d = false;
+    var _e = undefined;
+
+    try {
+      for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+        _arr.push(_s.value);
+
+        if (i && _arr.length === i) break;
+      }
+    } catch (err) {
+      _d = true;
+      _e = err;
+    } finally {
+      try {
+        if (!_n && _i["return"] != null) _i["return"]();
+      } finally {
+        if (_d) throw _e;
+      }
+    }
+
+    return _arr;
+  }
+
+  function _unsupportedIterableToArray(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _arrayLikeToArray(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(o);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen);
+  }
+
+  function _arrayLikeToArray(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+
+    for (var i = 0, arr2 = new Array(len); i < len; i++) arr2[i] = arr[i];
+
+    return arr2;
+  }
+
+  function _nonIterableRest() {
+    throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+  }
+
   function isObject(obj) {
     // 使用typeof 这里可以将array判断为object；
     return _typeof(obj) === 'object' && obj !== null;
@@ -235,6 +291,7 @@
   // <div >   <br/>
 
   var startTagClose = /^\s*(\/?)>/; // 匹配标签结束的 >
+  // 将模板变为ast语法树
   // 1. 从字符串中读取数据，使用字符串从左到右（使用这个方向的原因是正则上做了限制）逐步截取
   // 2. 组装树
 
@@ -364,10 +421,105 @@
     return root;
   }
 
+  // 匹配动态变量的  +? 尽可能少匹配
+  var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g;
+
+  function genProps(attrs) {
+    var str = '';
+
+    for (var i = 0; i < attrs.length; i++) {
+      var attr = attrs[i];
+
+      if (attr.name === 'style') {
+        (function () {
+          var obj = {};
+          attr.value.split(';').forEach(function (item) {
+            var _item$split = item.split(':'),
+                _item$split2 = _slicedToArray(_item$split, 2),
+                key = _item$split2[0],
+                value = _item$split2[1];
+
+            obj[key] = value;
+          });
+          attr.value = obj;
+        })();
+      }
+
+      str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ",");
+    }
+
+    return "{".concat(str.slice(0, -1), "}");
+  }
+
+  function gen(el) {
+    if (el.type === 1) {
+      return generate(el);
+    } else {
+      // 处理文本
+      var text = el.text;
+
+      if (!defaultTagRE.test(text)) {
+        return "_v(".concat(JSON.stringify(text), ")");
+      } else {
+        // 注意：正则添加全局匹配后，每一次匹配后，正则的lastIndex属性都会变为上次捕获的下标
+        var tokens = [];
+        var lastIndex = defaultTagRE.lastIndex = 0;
+        var match, index;
+
+        while (match = defaultTagRE.exec(text)) {
+          index = match.index;
+          tokens.push(JSON.stringify(text.slice(lastIndex, index)));
+          tokens.push("_s(".concat(match[1].trim(), ")"));
+          lastIndex = index + match[0].length;
+        }
+
+        if (lastIndex < text.length) {
+          tokens.push(JSON.stringify(text.slice(lastIndex)));
+        }
+
+        return "_v(".concat(tokens.join('+'), ")");
+      }
+    }
+  }
+
+  function genChildren(el) {
+    if (el.children.length > 0) {
+      return el.children.map(function (c) {
+        return gen(c);
+      }).join(',');
+    } else {
+      return false;
+    }
+  }
+
+  function generate(el) {
+    var children = genChildren(el);
+    var code = "\n        _c(\"".concat(el.tag, "\",").concat(el.attrs.length ? genProps(el.attrs) : undefined, " ").concat(children ? ",".concat(children) : '', ")\n    ");
+    return code;
+  }
+
   function compileToFunctions(template) {
     var ast = parserHTML(template); // 将模板变为ast语法树
+    // 代码生成
+    // template => render 函数
 
-    console.log(ast);
+    /**
+     * react 
+     * render(){ 
+        * with(this){
+        *  return _c('div',{id:app,style:{color:red}},_c('span',undefined,_v("helloworld"+_s(msg)) ))
+        * }
+     * }
+     * 
+     */
+    // 核心就是字符串拼接
+
+    var code = generate(ast); // 代码生成
+
+    code = "with(this){return ".concat(code, "}"); // 合成事件 自闭和标签
+
+    var render = new Function(code);
+    return render;
   }
 
   function initMixin(Vue) {
