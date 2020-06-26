@@ -1,5 +1,6 @@
 import {initState} from './state';
 import { compileToFunctions } from './compiler/index';
+import { mountComponent } from './lifecycle';
 export function initMixin(Vue){
     Vue.prototype._init = function(options){
         // Vue的内部 $options 就是用户传递的所有参数
@@ -13,9 +14,9 @@ export function initMixin(Vue){
         }
     };
 
-    Vue.prototype.$mount = function(el){
-        el = document.querySelector(el);
+    Vue.prototype.$mount = function(el){   
         const vm = this;
+        el = vm.$el = document.querySelector(el);
         const opts = vm.$options;
 
         if(!opts.render){
@@ -28,7 +29,9 @@ export function initMixin(Vue){
 
             opts.render = render;
         }
-
+        
+        mountComponent(vm,el);
+        
         //opts.render();
         
     }
